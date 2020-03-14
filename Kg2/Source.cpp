@@ -1,8 +1,8 @@
 #include <stdlib.h>
 #include <iostream>
 #include <vector>	
-#include <freeglut.h>
-#include <glut.h>
+#include <GL/freeglut.h>
+#include <GL/glut.h>
 using namespace std;
 
 
@@ -14,7 +14,7 @@ int currentPolygonIndex = -1;
 /*Функция вывода на экран*/
 void Display(void)
 {
-	glClearColor(1, 1, 1, 1);
+	glClearColor(0, 0, 0, 1);
 	glClear(GL_COLOR_BUFFER_BIT);
 	glColor3ub(255, 0, 0);
 	glFinish();
@@ -49,6 +49,7 @@ void main(int argc, char* argv[])
 	glutInit(&argc, argv);
 	glutInitDisplayMode(GLUT_RGB);
 	glutInitWindowSize(Width, Height);
+	glutCreateWindow("glut");
 	glutDisplayFunc(Display);
 	glutReshapeFunc(Reshape);
 	glutKeyboardFunc(Keyboard);
