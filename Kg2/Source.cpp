@@ -23,7 +23,16 @@ public:
 	void Draw()
 	{
 		//glTranslatef(0,0,7);
-		glBegin(GL_TRIANGLES);
+		if (points.size()>3)
+		{
+			glColor3f(1, 0, 0);
+		}
+		else
+		{
+			glColor3f(0, 1, 0);
+		}
+
+		glBegin(GL_POLYGON);
 		glNormal3fv(glm::value_ptr(norm));
 		for (size_t i = 0; i < points.size(); i++)
 		{
@@ -62,11 +71,19 @@ public:
 	vec position;
 	vec way;
 	vector<Primal*> primals;
+
+	Primal* BuildEdge(vec a1,vec a2, vec b1, vec b2)
+	{
+		Primal* Edge = new Primal({ a1, b1, b2, a2 });
+		Edge->norm = glm::cross(a2 - a1, b1 - a1);
+		return Edge;
+	}
+
 	void Build(Primal* section)
 	{
 		glm::mat4 mat = glm::mat4(1.0f);
 		vec norm = glm::normalize(way);
-		vec rotationAxe = -glm::cross({ 0,0,1 }, norm);
+		vec rotationAxe = glm::cross({ 0,0,1 }, norm);
 		if (way != vec{0, 0, 1})
 		{
 			rotationAxe = glm::normalize(rotationAxe);
@@ -79,8 +96,18 @@ public:
 			section->points[i] = mat * tmp;
 		}
 		section->norm = norm;
+
 		float* tmp = glm::value_ptr(section->points[2]);
-		primals.push_back(section);
+		primals.push_back(new Primal(*section));
+		for (size_t i = 0; i < section->points.size(); i++)
+		{
+			section->points[i] +=norm;
+		}
+		primals.push_back(new Primal(*section));
+
+		primals.push_back(new Primal(*BuildEdge(primals[0]->points[0],primals[0]->points[1],primals[1]->points[0],primals[1]->points[1])));
+		primals.push_back(new Primal(*BuildEdge(primals[0]->points[0], primals[0]->points[2], primals[1]->points[0], primals[1]->points[2])));
+		primals.push_back(new Primal(*BuildEdge(primals[0]->points[1], primals[0]->points[2], primals[1]->points[1], primals[1]->points[2])));
 	}
 	
 	void Draw()
@@ -135,50 +162,60 @@ void display() {
 	glColor3f(0, 1, 0);
 	toDraw->Draw();
 
-	glBegin(GL_QUADS);                // Begin drawing the color cube with 6 quads
-	  // Top face (y = 1.0f)
-	  // Define vertices in counter-clockwise (CCW) order with normal pointing out
-	glColor3f(0.0f, 1.0f, 0.0f);     // Green
-	glVertex3f(1.0f, 1.0f, -1.0f);
-	glVertex3f(-1.0f, 1.0f, -1.0f);
-	glVertex3f(-1.0f, 1.0f, 1.0f);
-	glVertex3f(1.0f, 1.0f, 1.0f);
+	////Multi-colored side - FRONT
+	//glBegin(GL_POLYGON);
 
-	// Bottom face (y = -1.0f)
-	glColor3f(1.0f, 0.5f, 0.0f);     // Orange
-	glVertex3f(1.0f, -1.0f, 1.0f);
-	glVertex3f(-1.0f, -1.0f, 1.0f);
-	glVertex3f(-1.0f, -1.0f, -1.0f);
-	glVertex3f(1.0f, -1.0f, -1.0f);
+	//glColor3f(1.0, 0.0, 0.0);     glVertex3f(0.5, -0.5, -0.5);      // P1 is red
+	//glColor3f(0.0, 1.0, 0.0);     glVertex3f(0.5, 0.5, -0.5);      // P2 is green
+	//glColor3f(0.0, 0.0, 1.0);     glVertex3f(-0.5, 0.5, -0.5);      // P3 is blue
+	//glColor3f(1.0, 0.0, 1.0);     glVertex3f(-0.5, -0.5, -0.5);      // P4 is purple
 
-	// Front face  (z = 1.0f)
-	glColor3f(1.0f, 0.0f, 0.0f);     // Red
-	glVertex3f(1.0f, 1.0f, 1.0f);
-	glVertex3f(-1.0f, 1.0f, 1.0f);
-	glVertex3f(-1.0f, -1.0f, 1.0f);
-	glVertex3f(1.0f, -1.0f, 1.0f);
+	//glEnd();
 
-	// Back face (z = -1.0f)
-	glColor3f(1.0f, 1.0f, 0.0f);     // Yellow
-	glVertex3f(1.0f, -1.0f, -1.0f);
-	glVertex3f(-1.0f, -1.0f, -1.0f);
-	glVertex3f(-1.0f, 1.0f, -1.0f);
-	glVertex3f(1.0f, 1.0f, -1.0f);
 
-	// Left face (x = -1.0f)
-	glColor3f(0.0f, 0.0f, 1.0f);     // Blue
-	glVertex3f(-1.0f, 1.0f, 1.0f);
-	glVertex3f(-1.0f, 1.0f, -1.0f);
-	glVertex3f(-1.0f, -1.0f, -1.0f);
-	glVertex3f(-1.0f, -1.0f, 1.0f);
+	//// White side - BACK
+	//glBegin(GL_POLYGON);
+	//glColor3f(1.0, 1.0, 1.0);
+	//glVertex3f(0.5, -0.5, 0.5);
+	//glVertex3f(0.5, 0.5, 0.5);
+	//glVertex3f(-0.5, 0.5, 0.5);
+	//glVertex3f(-0.5, -0.5, 0.5);
+	//glEnd();
 
-	// Right face (x = 1.0f)
-	glColor3f(1.0f, 0.0f, 1.0f);     // Magenta
-	glVertex3f(1.0f, 1.0f, -1.0f);
-	glVertex3f(1.0f, 1.0f, 1.0f);
-	glVertex3f(1.0f, -1.0f, 1.0f);
-	glVertex3f(1.0f, -1.0f, -1.0f);
-	glEnd();  // End of drawing color-cube
+	//// Purple side - RIGHT
+	//glBegin(GL_POLYGON);
+	//glColor3f(1.0, 0.0, 1.0);
+	//glVertex3f(0.5, -0.5, -0.5);
+	//glVertex3f(0.5, 0.5, -0.5);
+	//glVertex3f(0.5, 0.5, 0.5);
+	//glVertex3f(0.5, -0.5, 0.5);
+	//glEnd();
+
+	//// Green side - LEFT
+	//glBegin(GL_POLYGON);
+	//glColor3f(0.0, 1.0, 0.0);
+	//glVertex3f(-0.5, -0.5, 0.5);
+	//glVertex3f(-0.5, 0.5, 0.5);
+	//glVertex3f(-0.5, 0.5, -0.5);
+	//glVertex3f(-0.5, -0.5, -0.5);
+	//glEnd();
+
+	//// Blue side - TOP
+	//glBegin(GL_POLYGON);
+	//glColor3f(0.0, 0.0, 1.0);
+	//glVertex3f(0.5, 0.5, 0.5);
+	//glVertex3f(0.5, 0.5, -0.5);
+	//glVertex3f(-0.5, 0.5, -0.5);
+	//glVertex3f(-0.5, 0.5, 0.5);
+	//glEnd();
+	//// Red side - BOTTOM
+	//glBegin(GL_POLYGON);
+	//glColor3f(1.0, 0.0, 0.0);
+	//glVertex3f(0.5, -0.5, -0.5);
+	//glVertex3f(0.5, -0.5, 0.5);
+	//glVertex3f(-0.5, -0.5, 0.5);
+	//glVertex3f(-0.5, -0.5, -0.5);
+	//glEnd();
 
 
     glFlush();
@@ -193,10 +230,10 @@ void initialize()
 	//glViewport(0, 0, win.width, win.height);									// set the viewport	
 	glLoadIdentity();															// reset projection matrix
 	GLfloat aspect = (GLfloat)win.width / win.height;
-	glOrtho(-10,10,-10,10, 1000,3);
+	glOrtho(-10,10,-10,10, 0,1000);
 	//gluPerspective(win.field_of_view_angle, aspect, win.z_near, win.z_far);		
 	glTranslatef(0.0f, 0.0f, -10.0f);
-	glRotatef(90, 1, 0, 0);
+	//glRotatef(90, 1, 0, 0);
 	// set up a perspective projection matrix
 	glMatrixMode(GL_MODELVIEW);													// specify which matrix is the current matrix
 	//glShadeModel(GL_SMOOTH);
@@ -204,7 +241,7 @@ void initialize()
 	//glEnable(GL_DEPTH_TEST);
 	//glDepthFunc(GL_LEQUAL);
 	//glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST);						// specify implementation-specific hints
-	glClearColor(1.0, 1.0, 1.0, 1.0);											// specify clear values for the color buffers								
+	glClearColor(1.0, 1.0, 0.0, 1.0);											// specify clear values for the color buffers								
 }
 
 
@@ -244,7 +281,7 @@ int main(int argc, char** argv)
 			{1,0,0}
 		}
 	);
-	Edition myEdition({ 0,0,0 }, { 1,0,1 });
+	Edition myEdition({ 0,0,0 }, { 1,1,1 });
 	myEdition.Build(sec);
 	toDraw = &myEdition;
 	vec tmp = glm::vec4{ 1,1,1,2 };
