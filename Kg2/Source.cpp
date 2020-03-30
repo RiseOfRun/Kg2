@@ -12,13 +12,38 @@ using namespace std;
 
 typedef glm::vec3 vec;
 
-float rotate_x = 30, rotate_y = 30;
+float rotate_x = 0, rotate_y = 0;
+
 
 class Primal
 {
 public:
 	vector<vec> points;
 	vec norm;
+	void Draw()
+	{
+		//glTranslatef(0,0,7);
+		glBegin(GL_TRIANGLES);
+		glNormal3fv(glm::value_ptr(norm));
+		for (size_t i = 0; i < points.size(); i++)
+		{
+			glVertex3fv(glm::value_ptr(points[i]));
+		}
+		glEnd();
+	}
+
+	vec Central()
+	{
+		int i = 0;
+		vec result = vec(0);
+		for (i = 0; i < points.size(); i++)
+		{
+			result += points[i];
+		}
+		result = result / (float)i;
+		return result;
+	}
+
 	Primal(vector<vec> points)
 	{
 		this->points = points;
@@ -34,8 +59,46 @@ public:
 class Edition
 {
 public:
-    vec position;
+	vec position;
+	vec way;
+	vector<Primal*> primals;
+	void Build(Primal* section)
+	{
+		glm::mat4 mat = glm::mat4(1.0f);
+		vec norm = glm::normalize(way);
+		vec rotationAxe = -glm::cross({ 0,0,1 }, norm);
+		if (way != vec{0, 0, 1})
+		{
+			rotationAxe = glm::normalize(rotationAxe);
+		}
+		float angle = acosf(glm::dot({ 0,0,1 }, norm));
+		mat = glm::rotate(mat, angle, rotationAxe);
+		for (size_t i = 0; i < section->points.size(); i++)
+		{
+			glm::vec4 tmp = { section->points[i],1 };
+			section->points[i] = mat * tmp;
+		}
+		section->norm = norm;
+		float* tmp = glm::value_ptr(section->points[2]);
+		primals.push_back(section);
+	}
+	
+	void Draw()
+	{
+		for (size_t i = 0; i < primals.size(); i++)
+		{
+			primals[i]->Draw();
+		}
+	}
 
+	Edition(vec pos, vec way)
+	{
+		position = pos;
+		this->way = way;
+	}
+	Edition() {}
+	~Edition() {}
+	
 };
 
 typedef struct {
@@ -50,152 +113,74 @@ typedef struct {
 
 glutWindow win;
 
+Edition* toDraw;
 
 void display() {
     GLfloat params[16];
 
     //  Clear screen and Z-buffer
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    float f[16];
     // Reset transformations
     glMatrixMode(GL_MODELVIEW);
-    glLoadIdentity();
-    glGetFloatv(GL_MODELVIEW_MATRIX, params);
-    glm::mat4 matrix = glm::make_mat4(params);
-   
-    vec test;
-    test = { 1,2,3 };
-    float* test2;
-    test2 = glm::value_ptr(test);
-    matrix = glm::rotate(matrix,glm::radians(30.0f), glm::vec3(1.0f, 0.0f, 0.0f));
-    glMultMatrixf(glm::value_ptr(matrix));
-    //float* test = glm::value_ptr(test);
-   // glPushMatrix();
 
-    //glBegin(GL_POLYGON);
+	vec center = toDraw->primals[0]->Central();
+	glBegin(GL_LINES);
+	glColor3f(0, 0, 0);
+	glVertex3fv(glm::value_ptr(center));
+	center += toDraw->primals[0]->norm;
+	glVertex3fv(glm::value_ptr(center));
+	glEnd();
+	glLoadIdentity();
 
-    //glColor3f(1.0, 0.0, 0.0);     glVertex3f(0.5, -0.5, -0.5);      // P1 is red
-    //glColor3f(0.0, 1.0, 0.0);     glVertex3f(0.5, 0.5, -0.5);      // P2 is green
-    //glColor3f(0.0, 0.0, 1.0);     glVertex3f(-0.5, 0.5, -0.5);      // P3 is blue
-    //glColor3f(1.0, 0.0, 1.0);     glVertex3f(-0.5, -0.5, -0.5);      // P4 is purple
+	glColor3f(0, 1, 0);
+	toDraw->Draw();
 
-    //glEnd();
+	glBegin(GL_QUADS);                // Begin drawing the color cube with 6 quads
+	  // Top face (y = 1.0f)
+	  // Define vertices in counter-clockwise (CCW) order with normal pointing out
+	glColor3f(0.0f, 1.0f, 0.0f);     // Green
+	glVertex3f(1.0f, 1.0f, -1.0f);
+	glVertex3f(-1.0f, 1.0f, -1.0f);
+	glVertex3f(-1.0f, 1.0f, 1.0f);
+	glVertex3f(1.0f, 1.0f, 1.0f);
 
-    //// White side - BACK
-    //glBegin(GL_POLYGON);
-    //glColor3f(1.0, 1.0, 1.0);
-    //glVertex3f(0.5, -0.5, 0.5);
-    //glVertex3f(0.5, 0.5, 0.5);
-    //glVertex3f(-0.5, 0.5, 0.5);
-    //glVertex3f(-0.5, -0.5, 0.5);
-    //glEnd();
+	// Bottom face (y = -1.0f)
+	glColor3f(1.0f, 0.5f, 0.0f);     // Orange
+	glVertex3f(1.0f, -1.0f, 1.0f);
+	glVertex3f(-1.0f, -1.0f, 1.0f);
+	glVertex3f(-1.0f, -1.0f, -1.0f);
+	glVertex3f(1.0f, -1.0f, -1.0f);
 
-    //// Purple side - RIGHT
-    //glBegin(GL_POLYGON);
-    //glColor3f(1.0, 0.0, 1.0);
-    //glVertex3f(0.5, -0.5, -0.5);
-    //glVertex3f(0.5, 0.5, -0.5);
-    //glVertex3f(0.5, 0.5, 0.5);
-    //glVertex3f(0.5, -0.5, 0.5);
-    //glEnd();
+	// Front face  (z = 1.0f)
+	glColor3f(1.0f, 0.0f, 0.0f);     // Red
+	glVertex3f(1.0f, 1.0f, 1.0f);
+	glVertex3f(-1.0f, 1.0f, 1.0f);
+	glVertex3f(-1.0f, -1.0f, 1.0f);
+	glVertex3f(1.0f, -1.0f, 1.0f);
 
-    //// Green side - LEFT
-    //glBegin(GL_POLYGON);
-    //glColor3f(0.0, 1.0, 0.0);
-    //glVertex3f(-0.5, -0.5, 0.5);
-    //glVertex3f(-0.5, 0.5, 0.5);
-    //glVertex3f(-0.5, 0.5, -0.5);
-    //glVertex3f(-0.5, -0.5, -0.5);
-    //glEnd();
+	// Back face (z = -1.0f)
+	glColor3f(1.0f, 1.0f, 0.0f);     // Yellow
+	glVertex3f(1.0f, -1.0f, -1.0f);
+	glVertex3f(-1.0f, -1.0f, -1.0f);
+	glVertex3f(-1.0f, 1.0f, -1.0f);
+	glVertex3f(1.0f, 1.0f, -1.0f);
 
-    //// Blue side - TOP
-    //glBegin(GL_POLYGON);
-    //glColor3f(0.0, 0.0, 1.0);
-    //glVertex3f(0.5, 0.5, 0.5);
-    //glVertex3f(0.5, 0.5, -0.5);
-    //glVertex3f(-0.5, 0.5, -0.5);
-    //glVertex3f(-0.5, 0.5, 0.5);
-    //glEnd();
-    //// Red side - BOTTOM
-    //glBegin(GL_POLYGON);
-    //glColor3f(1.0, 0.0, 0.0);
-    //glVertex3f(0.5, -0.5, -0.5);
-    //glVertex3f(0.5, -0.5, 0.5);
-    //glVertex3f(-0.5, -0.5, 0.5);
-    //glVertex3f(-0.5, -0.5, -0.5);
-    //glEnd();
+	// Left face (x = -1.0f)
+	glColor3f(0.0f, 0.0f, 1.0f);     // Blue
+	glVertex3f(-1.0f, 1.0f, 1.0f);
+	glVertex3f(-1.0f, 1.0f, -1.0f);
+	glVertex3f(-1.0f, -1.0f, -1.0f);
+	glVertex3f(-1.0f, -1.0f, 1.0f);
 
-    // Other Transformations
-    // glTranslatef( 0.1, 0.0, 0.0 );      // Not included
-    // glRotatef( 180, 0.0, 1.0, 0.0 );    // Not included
-
-    // Rotate when user changes rotate_x and rotate_y
-    //glGetFloatv(GL_MODELVIEW_MATRIX, params);
-    //glRotatef(rotate_x, 1.0, 0.0, 0.0);
-    //glGetFloatv(GL_MODELVIEW_MATRIX, params);
-    //glRotatef(rotate_y, 0.0, 1.0, 0.0);
-    //glGetFloatv(GL_MODELVIEW_MATRIX, params);
+	// Right face (x = 1.0f)
+	glColor3f(1.0f, 0.0f, 1.0f);     // Magenta
+	glVertex3f(1.0f, 1.0f, -1.0f);
+	glVertex3f(1.0f, 1.0f, 1.0f);
+	glVertex3f(1.0f, -1.0f, 1.0f);
+	glVertex3f(1.0f, -1.0f, -1.0f);
+	glEnd();  // End of drawing color-cube
 
 
-    // Other Transformations
-    // glScalef( 2.0, 2.0, 0.0 );          // Not included
-
-   //Multi-colored side - FRONT
-    glBegin(GL_POLYGON);
-
-    glColor3f(1.0, 0.0, 0.0);     glVertex3f(0.5, -0.5, -0.5);      // P1 is red
-    glColor3f(0.0, 1.0, 0.0);     glVertex3f(0.5, 0.5, -0.5);      // P2 is green
-    glColor3f(0.0, 0.0, 1.0);     glVertex3f(-0.5, 0.5, -0.5);      // P3 is blue
-    glColor3f(1.0, 0.0, 1.0);     glVertex3f(-0.5, -0.5, -0.5);      // P4 is purple
-
-    glEnd();
-
-
-    // White side - BACK
-    glBegin(GL_POLYGON);
-    glColor3f(1.0, 1.0, 1.0);
-    glVertex3f(0.5, -0.5, 0.5);
-    glVertex3f(0.5, 0.5, 0.5);
-    glVertex3f(-0.5, 0.5, 0.5);
-    glVertex3f(-0.5, -0.5, 0.5);
-    glEnd();
-
-    // Purple side - RIGHT
-    glBegin(GL_POLYGON);
-    glColor3f(1.0, 0.0, 1.0);
-    glVertex3f(0.5, -0.5, -0.5);
-    glVertex3f(0.5, 0.5, -0.5);
-    glVertex3f(0.5, 0.5, 0.5);
-    glVertex3f(0.5, -0.5, 0.5);
-    glEnd();
-
-    // Green side - LEFT
-    glBegin(GL_POLYGON);
-    glColor3f(0.0, 1.0, 0.0);
-    glVertex3f(-0.5, -0.5, 0.5);
-    glVertex3f(-0.5, 0.5, 0.5);
-    glVertex3f(-0.5, 0.5, -0.5);
-    glVertex3f(-0.5, -0.5, -0.5);
-    glEnd();
-
-    // Blue side - TOP
-    glBegin(GL_POLYGON);
-    glColor3f(0.0, 0.0, 1.0);
-    glVertex3f(0.5, 0.5, 0.5);
-    glVertex3f(0.5, 0.5, -0.5);
-    glVertex3f(-0.5, 0.5, -0.5);
-    glVertex3f(-0.5, 0.5, 0.5);
-    glEnd();
-    // Red side - BOTTOM
-    glBegin(GL_POLYGON);
-    glColor3f(1.0, 0.0, 0.0);
-    glVertex3f(0.5, -0.5, -0.5);
-    glVertex3f(0.5, -0.5, 0.5);
-    glVertex3f(-0.5, -0.5, 0.5);
-    glVertex3f(-0.5, -0.5, -0.5);
-    glEnd();
-
-  
     glFlush();
     glutSwapBuffers();
 
@@ -210,7 +195,8 @@ void initialize()
 	GLfloat aspect = (GLfloat)win.width / win.height;
 	glOrtho(-10,10,-10,10, 1000,3);
 	//gluPerspective(win.field_of_view_angle, aspect, win.z_near, win.z_far);		
-	glTranslatef(0.0f, 0.0f, -3.0f);
+	glTranslatef(0.0f, 0.0f, -10.0f);
+	glRotatef(90, 1, 0, 0);
 	// set up a perspective projection matrix
 	glMatrixMode(GL_MODELVIEW);													// specify which matrix is the current matrix
 	//glShadeModel(GL_SMOOTH);
@@ -235,8 +221,14 @@ void specialKeys(int key, int x, int y) {
     else if (key == GLUT_KEY_UP)
         rotate_x += 5;
 
-    else if (key == GLUT_KEY_DOWN)
-        rotate_x -= 5;
+	else if (key == GLUT_KEY_DOWN)
+	{
+		rotate_x -= 5;
+		glMatrixMode(GL_PROJECTION);
+		glRotatef(-5, 1, 0, 0);
+		glMatrixMode(GL_MODELVIEW);													// specify which matrix is the current matrix
+
+	}
 
     //  Request display update
     glutPostRedisplay();
@@ -245,6 +237,18 @@ void specialKeys(int key, int x, int y) {
 
 int main(int argc, char** argv)
 {
+	Primal* sec = new Primal(
+		{
+			{-1,0,0},
+			{0,1,0},
+			{1,0,0}
+		}
+	);
+	Edition myEdition({ 0,0,0 }, { 1,0,1 });
+	myEdition.Build(sec);
+	toDraw = &myEdition;
+	vec tmp = glm::vec4{ 1,1,1,2 };
+	float* f = glm::value_ptr(tmp);
 	// set window values
 	win.width = 640;
 	win.height = 480;
