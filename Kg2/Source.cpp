@@ -13,13 +13,57 @@ using namespace std;
 typedef glm::vec3 vec;
 
 float rotate_x = 0, rotate_y = 0;
-
+int old_x = -1;
+int old_y = -1;
+float scale = 1;
 
 class Primal
 {
 public:
 	vector<vec> points;
+	vector<vector<vec>> edges;
 	vec norm;
+	void Norm()
+	{
+		vec a = points[0];
+		vec b = points[1];
+		vec c = points[2];
+		vec ba = b - a;
+		vec ca = c - a;
+		norm = glm::cross(ba, ca);
+	}
+	void ReBuildEdges()
+	{
+		edges = vector<vector<vec>>(0);
+		for (size_t i = 0; i < points.size() - 1; i++)
+		{
+			vector<vec> edge;
+			edge.push_back(points[i]);
+			edge.push_back(points[i + 1]);
+			edges.push_back(edge);
+		}
+		vector<vec> edge;
+		edge.push_back(points[0]);
+		edge.push_back(points[points.size() - 1]);
+		edges.push_back(edge);
+	}
+
+	void DrawNormals()
+	{
+		
+		glColor3f(0, 0, 0);
+		glBegin(GL_LINES);
+		vec path = glm::normalize(norm);
+		for (size_t i = 0; i < points.size(); i++)
+		{
+			vec point = points[i];
+			glVertex3fv(glm::value_ptr(point));
+			glVertex3fv(glm::value_ptr(point+3.0f*path));
+		}
+		
+		glEnd();
+	}
+
 	void Draw()
 	{
 		//glTranslatef(0,0,7);
@@ -56,7 +100,9 @@ public:
 	Primal(vector<vec> points)
 	{
 		this->points = points;
+		ReBuildEdges();
 	}
+
 	Primal() {
 
 	}
@@ -81,6 +127,7 @@ public:
 
 	void Build(Primal* section)
 	{
+		//поворачиваем сечение в направлении
 		glm::mat4 mat = glm::mat4(1.0f);
 		vec norm = glm::normalize(way);
 		vec rotationAxe = glm::cross({ 0,0,1 }, norm);
@@ -96,20 +143,49 @@ public:
 			section->points[i] = mat * tmp;
 		}
 		section->norm = norm;
-
-		float* tmp = glm::value_ptr(section->points[2]);
+		section->ReBuildEdges();
 		primals.push_back(new Primal(*section));
+
+		//сдвигаем сечение
 		for (size_t i = 0; i < section->points.size(); i++)
 		{
 			section->points[i] +=norm;
 		}
-		primals.push_back(new Primal(*section));
 
-		primals.push_back(new Primal(*BuildEdge(primals[0]->points[0],primals[0]->points[1],primals[1]->points[0],primals[1]->points[1])));
-		primals.push_back(new Primal(*BuildEdge(primals[0]->points[0], primals[0]->points[2], primals[1]->points[0], primals[1]->points[2])));
-		primals.push_back(new Primal(*BuildEdge(primals[0]->points[1], primals[0]->points[2], primals[1]->points[1], primals[1]->points[2])));
+		//поворачиваем на заданный угол
+
+		//mat = glm::mat4(1.0f);
+		//mat = glm::rotate(mat, (float)glm::radians(35.0f), norm);
+		//for (size_t i = 0; i < section->points.size(); i++)
+		//{
+		//	glm::vec4 tmp = { section->points[i],1 };
+		//	section->points[i] = mat * tmp;
+		//}
+		section->ReBuildEdges();
+		primals.push_back(new Primal(*section));
+		//строим дополнительные грани
+		for (size_t i = 0; i < section->edges.size(); i++)
+		{
+			vec a1 = primals[0]->edges[i][0];
+			vec a2 = primals[0]->edges[i][1];
+			vec b1 = primals[1]->edges[i][0];
+			vec b2 = primals[1]->edges[i][1];
+			primals.push_back(BuildEdge(a1, a2, b1, b2));
+		}
+
+		for (size_t i = 0; i < primals.size(); i++)
+		{
+			primals[i]->Norm();
+		}
 	}
 	
+	void DrawNormals()
+	{
+		for (size_t i = 0; i < primals.size(); i++)
+		{
+			primals[i]->DrawNormals();
+		}
+	}
 	void Draw()
 	{
 		for (size_t i = 0; i < primals.size(); i++)
@@ -117,6 +193,8 @@ public:
 			primals[i]->Draw();
 		}
 	}
+
+
 
 	Edition(vec pos, vec way)
 	{
@@ -142,6 +220,21 @@ glutWindow win;
 
 Edition* toDraw;
 
+void DrawAxis()
+{
+	glBegin(GL_LINES);
+	glColor3f(1, 0, 0);
+	glVertex3f(-10, 0, 0);
+	glVertex3f(10, 0, 0);
+	glColor3f(0, 1, 0);
+	glVertex3f(0, -10, 0);
+	glVertex3f(0, 10, 0);
+	glColor3f(0, 0, 1);
+	glVertex3f(0, 0, -10);
+	glVertex3f(0, 0, 10);
+	glEnd();
+}
+
 void display() {
     GLfloat params[16];
 
@@ -149,18 +242,14 @@ void display() {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     // Reset transformations
     glMatrixMode(GL_MODELVIEW);
-
-	vec center = toDraw->primals[0]->Central();
-	glBegin(GL_LINES);
-	glColor3f(0, 0, 0);
-	glVertex3fv(glm::value_ptr(center));
-	center += toDraw->primals[0]->norm;
-	glVertex3fv(glm::value_ptr(center));
-	glEnd();
 	glLoadIdentity();
-
+	glRotatef(rotate_x, 1, 0, 0);
+	glRotatef(rotate_y, 0, 1, 0);
+	glScalef(scale, scale, scale);
 	glColor3f(0, 1, 0);
 	toDraw->Draw();
+	toDraw->DrawNormals();
+	DrawAxis();
 
 	////Multi-colored side - FRONT
 	//glBegin(GL_POLYGON);
@@ -223,6 +312,57 @@ void display() {
 
 }
 
+void MouseButton(int button, int state, int x, int y) {
+	
+
+	if (button == 3)
+	{
+		scale += 0.05;
+		if (scale<0)
+		{
+			scale = 0;
+		}
+		return;
+	}
+
+	if (button ==4)
+	{
+		scale -= 0.05;
+		if (scale<0)
+		{
+			scale = 0;
+		}
+		return;
+	}
+	// only start motion if the left button is pressed
+	if (button == GLUT_LEFT_BUTTON) {
+
+		// when the button is released
+		if (state == GLUT_UP) {
+			old_x = -1;
+			old_y = -1;
+		}
+		else {// state = GLUT_DOWN
+			old_x = x;
+			old_y = y;
+		}
+	}
+}
+
+void RotateTheCamera(int x, int y)
+{
+
+	if (old_x>=0) {
+		int dx = old_x - x;
+		int dy = old_y - y;
+
+		rotate_y -= dx;
+		rotate_x -= dy;
+		/* do something with dx and dy */
+	}
+	old_x = x;
+	old_y = y;
+}
 
 void initialize()
 {
@@ -234,6 +374,8 @@ void initialize()
 	//gluPerspective(win.field_of_view_angle, aspect, win.z_near, win.z_far);		
 	glTranslatef(0.0f, 0.0f, -10.0f);
 	//glRotatef(90, 1, 0, 0);
+	glEnable(GL_LIGHTING); glEnable(GL_LIGHT0); float pos[] = { 0, 0, 1, 1 }; float mat[] = { 0.2, 0.2, 0.2, 1 }; glLightModelf(GL_LIGHT_MODEL_TWO_SIDE, GL_TRUE); glLightfv(GL_LIGHT0, GL_POSITION, pos); glMaterialfv(GL_FRONT, GL_AMBIENT_AND_DIFFUSE, mat); glEnable(GL_COLOR_MATERIAL);
+
 	// set up a perspective projection matrix
 	glMatrixMode(GL_MODELVIEW);													// specify which matrix is the current matrix
 	//glShadeModel(GL_SMOOTH);
@@ -241,7 +383,8 @@ void initialize()
 	//glEnable(GL_DEPTH_TEST);
 	//glDepthFunc(GL_LEQUAL);
 	//glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST);						// specify implementation-specific hints
-	glClearColor(1.0, 1.0, 0.0, 1.0);											// specify clear values for the color buffers								
+	//Ligt
+	glClearColor(0.23, 0.23, 0.23, 1.0);											// specify clear values for the color buffers								
 }
 
 
@@ -260,11 +403,14 @@ void specialKeys(int key, int x, int y) {
 
 	else if (key == GLUT_KEY_DOWN)
 	{
-		rotate_x -= 5;
-		glMatrixMode(GL_PROJECTION);
-		glRotatef(-5, 1, 0, 0);
-		glMatrixMode(GL_MODELVIEW);													// specify which matrix is the current matrix
+		rotate_x -= 5;												// specify which matrix is the current matrix
+	}
 
+	else if (key==32)
+	{
+		rotate_x = 0;
+		rotate_y = 0;
+		scale = 1;
 	}
 
     //  Request display update
@@ -278,10 +424,10 @@ int main(int argc, char** argv)
 		{
 			{-1,0,0},
 			{0,1,0},
-			{1,0,0}
+			{1,0,0},
 		}
 	);
-	Edition myEdition({ 0,0,0 }, { 1,1,1 });
+	Edition myEdition({ 0,0,0 }, { 0,1,0 });
 	myEdition.Build(sec);
 	toDraw = &myEdition;
 	vec tmp = glm::vec4{ 1,1,1,2 };
@@ -295,13 +441,18 @@ int main(int argc, char** argv)
 
 	// initialize and run program
 	glutInit(&argc, argv);                                      // GLUT initialization
-	glutInitDisplayMode(GLUT_RGB | GLUT_DOUBLE | GLUT_DEPTH);  // Display Mode
+	glutSetOption(GLUT_MULTISAMPLE, 8);
+	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB | GLUT_DEPTH | GLUT_MULTISAMPLE);;  // Display Mode
 	glutInitWindowSize(win.width, win.height);					// set window size
 	glutCreateWindow(win.title);								// create Window
     glEnable(GL_DEPTH_TEST);
 	glutDisplayFunc(display);									// register Display Function
 	glutIdleFunc(display);									// register Idle Function
     glutSpecialFunc(specialKeys);							// register Keyboard Handler
+	
+	//cameraRotationFunctions
+	glutMouseFunc(MouseButton);
+	glutMotionFunc(RotateTheCamera);
 	initialize();
 	glutMainLoop();												// run GLUT mainloop
 	return 0;
