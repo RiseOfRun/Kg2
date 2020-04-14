@@ -30,7 +30,7 @@ public:
 		vec c = points[2];
 		vec ba = b - a;
 		vec ca = c - a;
-		norm = glm::cross(ba, ca);
+		norm = -glm::cross(ba, ca);
 	}
 	void ReBuildEdges()
 	{
@@ -43,8 +43,8 @@ public:
 			edges.push_back(edge);
 		}
 		vector<vec> edge;
-		edge.push_back(points[0]);
 		edge.push_back(points[points.size() - 1]);
+		edge.push_back(points[0]);
 		edges.push_back(edge);
 	}
 
@@ -118,10 +118,10 @@ public:
 	vec way;
 	vector<Primal*> primals;
 
-	Primal* BuildEdge(vec a1,vec a2, vec b1, vec b2)
+	Primal* BuildPolygon(vec a,vec b, vec c)
 	{
-		Primal* Edge = new Primal({ a1, b1, b2, a2 });
-		Edge->norm = glm::cross(a2 - a1, b1 - a1);
+		Primal* Edge = new Primal({ a, b, c });
+		Edge->Norm();
 		return Edge;
 	}
 
@@ -154,13 +154,13 @@ public:
 
 		//поворачиваем на заданный угол
 
-		//mat = glm::mat4(1.0f);
-		//mat = glm::rotate(mat, (float)glm::radians(35.0f), norm);
-		//for (size_t i = 0; i < section->points.size(); i++)
-		//{
-		//	glm::vec4 tmp = { section->points[i],1 };
-		//	section->points[i] = mat * tmp;
-		//}
+		mat = glm::mat4(1.0f);
+		mat = glm::rotate(mat, (float)glm::radians(-35.0f), norm);
+		for (size_t i = 0; i < section->points.size(); i++)
+		{
+			glm::vec4 tmp = { section->points[i],1 };
+			section->points[i] = mat * tmp;
+		}
 		section->ReBuildEdges();
 		primals.push_back(new Primal(*section));
 		//строим дополнительные грани
@@ -170,7 +170,8 @@ public:
 			vec a2 = primals[0]->edges[i][1];
 			vec b1 = primals[1]->edges[i][0];
 			vec b2 = primals[1]->edges[i][1];
-			primals.push_back(BuildEdge(a1, a2, b1, b2));
+			primals.push_back(BuildPolygon(a1, a2, b1));
+			primals.push_back(BuildPolygon(a2, b2, b1));
 		}
 
 		for (size_t i = 0; i < primals.size(); i++)
