@@ -124,7 +124,8 @@ public:
 	vec way;
 	vector<Primal*> primals;
 
-	void BuildSmoothNormals()
+	//ToDO 
+	/*void BuildSmoothNormals()
 	{
 		std::unordered_map<vec, vec, vec> norms;
 		for (int i = 2; i < primals.size(); i++)
@@ -149,7 +150,7 @@ public:
 				primals[i]->normals[j] = glm::normalize(norms[primals[i]->points[j]]);
 			}
 		}
-	}
+	}*/
 	Primal* BuildPolygon(vec a,vec b, vec c)
 	{
 		Primal* Edge = new Primal({ a, b, c });
