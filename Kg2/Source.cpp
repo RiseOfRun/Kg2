@@ -2,11 +2,11 @@
 #include <stdlib.h>
 #include <iostream>
 #include <vector>	
+#include <unordered_map>
 #include <GL/freeglut.h>
 #include <glm/mat4x4.hpp>
 #include <glm/glm.hpp>
 #include <glm/ext.hpp>
-
 #define KEY_ESCAPE 27
 using namespace std;
 
@@ -21,6 +21,7 @@ class Primal
 {
 public:
 	vector<vec> points;
+	vector<vec> normals;
 	vector<vector<vec>> edges;
 	vec norm;
 	void Norm()
@@ -31,6 +32,11 @@ public:
 		vec ba = b - a;
 		vec ca = c - a;
 		norm = -glm::cross(ba, ca);
+		normals = vector<vec>(3);
+		for (size_t i = 0; i < 3; i++)
+		{
+			normals[i] = norm;
+		}
 	}
 	void ReBuildEdges()
 	{
@@ -77,9 +83,9 @@ public:
 		}
 
 		glBegin(GL_POLYGON);
-		glNormal3fv(glm::value_ptr(norm));
 		for (size_t i = 0; i < points.size(); i++)
 		{
+			glNormal3fv(glm::value_ptr(normals[i]));
 			glVertex3fv(glm::value_ptr(points[i]));
 		}
 		glEnd();
@@ -118,6 +124,32 @@ public:
 	vec way;
 	vector<Primal*> primals;
 
+	void BuildSmoothNormals()
+	{
+		std::unordered_map<vec, vec, vec> norms;
+		for (int i = 2; i < primals.size(); i++)
+		{
+			for (size_t j = 0; j < primals[i]->points.size(); j++)
+			{
+				if (!norms.count(primals[i]->points[j]))
+				{
+					norms[primals[i]->points[j]] = primals[i]->normals[j];
+				}
+				else
+				{
+					norms[primals[i]->points[j]] += primals[i]->normals[j];
+				}
+			}
+		}
+
+		for (int i = 2; i < primals.size(); i++)
+		{
+			for (size_t j = 0; j < primals[i]->points.size(); j++)
+			{
+				primals[i]->normals[j] = glm::normalize(norms[primals[i]->points[j]]);
+			}
+		}
+	}
 	Primal* BuildPolygon(vec a,vec b, vec c)
 	{
 		Primal* Edge = new Primal({ a, b, c });
@@ -155,7 +187,7 @@ public:
 		//поворачиваем на заданный угол
 
 		mat = glm::mat4(1.0f);
-		mat = glm::rotate(mat, (float)glm::radians(-35.0f), norm);
+		mat = glm::rotate(mat, (float)glm::radians(35.0f), norm);
 		for (size_t i = 0; i < section->points.size(); i++)
 		{
 			glm::vec4 tmp = { section->points[i],1 };
@@ -163,6 +195,7 @@ public:
 		}
 		section->ReBuildEdges();
 		primals.push_back(new Primal(*section));
+
 		//строим дополнительные грани
 		for (size_t i = 0; i < section->edges.size(); i++)
 		{
@@ -251,63 +284,6 @@ void display() {
 	toDraw->Draw();
 	toDraw->DrawNormals();
 	DrawAxis();
-
-	////Multi-colored side - FRONT
-	//glBegin(GL_POLYGON);
-
-	//glColor3f(1.0, 0.0, 0.0);     glVertex3f(0.5, -0.5, -0.5);      // P1 is red
-	//glColor3f(0.0, 1.0, 0.0);     glVertex3f(0.5, 0.5, -0.5);      // P2 is green
-	//glColor3f(0.0, 0.0, 1.0);     glVertex3f(-0.5, 0.5, -0.5);      // P3 is blue
-	//glColor3f(1.0, 0.0, 1.0);     glVertex3f(-0.5, -0.5, -0.5);      // P4 is purple
-
-	//glEnd();
-
-
-	//// White side - BACK
-	//glBegin(GL_POLYGON);
-	//glColor3f(1.0, 1.0, 1.0);
-	//glVertex3f(0.5, -0.5, 0.5);
-	//glVertex3f(0.5, 0.5, 0.5);
-	//glVertex3f(-0.5, 0.5, 0.5);
-	//glVertex3f(-0.5, -0.5, 0.5);
-	//glEnd();
-
-	//// Purple side - RIGHT
-	//glBegin(GL_POLYGON);
-	//glColor3f(1.0, 0.0, 1.0);
-	//glVertex3f(0.5, -0.5, -0.5);
-	//glVertex3f(0.5, 0.5, -0.5);
-	//glVertex3f(0.5, 0.5, 0.5);
-	//glVertex3f(0.5, -0.5, 0.5);
-	//glEnd();
-
-	//// Green side - LEFT
-	//glBegin(GL_POLYGON);
-	//glColor3f(0.0, 1.0, 0.0);
-	//glVertex3f(-0.5, -0.5, 0.5);
-	//glVertex3f(-0.5, 0.5, 0.5);
-	//glVertex3f(-0.5, 0.5, -0.5);
-	//glVertex3f(-0.5, -0.5, -0.5);
-	//glEnd();
-
-	//// Blue side - TOP
-	//glBegin(GL_POLYGON);
-	//glColor3f(0.0, 0.0, 1.0);
-	//glVertex3f(0.5, 0.5, 0.5);
-	//glVertex3f(0.5, 0.5, -0.5);
-	//glVertex3f(-0.5, 0.5, -0.5);
-	//glVertex3f(-0.5, 0.5, 0.5);
-	//glEnd();
-	//// Red side - BOTTOM
-	//glBegin(GL_POLYGON);
-	//glColor3f(1.0, 0.0, 0.0);
-	//glVertex3f(0.5, -0.5, -0.5);
-	//glVertex3f(0.5, -0.5, 0.5);
-	//glVertex3f(-0.5, -0.5, 0.5);
-	//glVertex3f(-0.5, -0.5, -0.5);
-	//glEnd();
-
-
     glFlush();
     glutSwapBuffers();
 
@@ -374,7 +350,6 @@ void initialize()
 	glOrtho(-10,10,-10,10, 0,1000);
 	//gluPerspective(win.field_of_view_angle, aspect, win.z_near, win.z_far);		
 	glTranslatef(0.0f, 0.0f, -10.0f);
-	//glRotatef(90, 1, 0, 0);
 	glEnable(GL_LIGHTING); glEnable(GL_LIGHT0); float pos[] = { 0, 0, 1, 1 }; float mat[] = { 0.2, 0.2, 0.2, 1 }; glLightModelf(GL_LIGHT_MODEL_TWO_SIDE, GL_TRUE); glLightfv(GL_LIGHT0, GL_POSITION, pos); glMaterialfv(GL_FRONT, GL_AMBIENT_AND_DIFFUSE, mat); glEnable(GL_COLOR_MATERIAL);
 
 	// set up a perspective projection matrix
