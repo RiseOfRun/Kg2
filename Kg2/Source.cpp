@@ -9,13 +9,74 @@
 #include <glm/ext.hpp>
 #define KEY_ESCAPE 27
 using namespace std;
-
 typedef glm::vec3 vec;
 
+float pos[] = { 0, 0, 10, 1 };
 float rotate_x = 0, rotate_y = 0;
 int old_x = -1;
 int old_y = -1;
 float scale = 1;
+
+void DrawCube()
+{
+	glBegin(GL_QUADS);                // Begin drawing the color cube with 6 quads
+	  // Top face (y = 1.0f)
+	  // Define vertices in counter-clockwise (CCW) order with normal pointing out
+	glColor3f(0.0f, 1.0f, 0.0f);     // Green
+	glVertex3f(1.0f, 1.0f, -1.0f);
+	glVertex3f(-1.0f, 1.0f, -1.0f);
+	glVertex3f(-1.0f, 1.0f, 1.0f);
+	glVertex3f(1.0f, 1.0f, 1.0f);
+
+	// Bottom face (y = -1.0f)
+	glColor3f(1.0f, 0.5f, 0.0f);     // Orange
+	glVertex3f(1.0f, -1.0f, 1.0f);
+	glVertex3f(-1.0f, -1.0f, 1.0f);
+	glVertex3f(-1.0f, -1.0f, -1.0f);
+	glVertex3f(1.0f, -1.0f, -1.0f);
+
+	// Front face  (z = 1.0f)
+	glColor3f(1.0f, 0.0f, 0.0f);     // Red
+	glVertex3f(1.0f, 1.0f, 1.0f);
+	glVertex3f(-1.0f, 1.0f, 1.0f);
+	glVertex3f(-1.0f, -1.0f, 1.0f);
+	glVertex3f(1.0f, -1.0f, 1.0f);
+
+	// Back face (z = -1.0f)
+	glColor3f(1.0f, 1.0f, 0.0f);     // Yellow
+	glVertex3f(1.0f, -1.0f, -1.0f);
+	glVertex3f(-1.0f, -1.0f, -1.0f);
+	glVertex3f(-1.0f, 1.0f, -1.0f);
+	glVertex3f(1.0f, 1.0f, -1.0f);
+
+	// Left face (x = -1.0f)
+	glColor3f(0.0f, 0.0f, 1.0f);     // Blue
+	glVertex3f(-1.0f, 1.0f, 1.0f);
+	glVertex3f(-1.0f, 1.0f, -1.0f);
+	glVertex3f(-1.0f, -1.0f, -1.0f);
+	glVertex3f(-1.0f, -1.0f, 1.0f);
+
+	// Right face (x = 1.0f)
+	glColor3f(1.0f, 0.0f, 1.0f);     // Magenta
+	glVertex3f(1.0f, 1.0f, -1.0f);
+	glVertex3f(1.0f, 1.0f, 1.0f);
+	glVertex3f(1.0f, -1.0f, 1.0f);
+	glVertex3f(1.0f, -1.0f, -1.0f);
+	glEnd();  // End of drawing color-cube
+}
+
+struct KeyFuncs
+{
+	size_t operator()(const vec& k)const
+	{
+		return std::hash<float>()(k.x) ^ std::hash<float>()(k.y) ^ std::hash<float>()(k.z);
+	}
+
+	bool operator()(const vec& a, const vec& b)const
+	{
+		return a.x == b.x && a.y == b.y && a.z==b.z;
+	}
+};
 
 class Primal
 {
@@ -33,11 +94,14 @@ public:
 		vec ca = c - a;
 		norm = -glm::cross(ba, ca);
 		normals = vector<vec>(3);
-		for (size_t i = 0; i < 3; i++)
+		for (size_t i = 0; i < points.size(); i++)
 		{
 			normals[i] = norm;
 		}
 	}
+
+	
+
 	void ReBuildEdges()
 	{
 		edges = vector<vector<vec>>(0);
@@ -59,9 +123,10 @@ public:
 		
 		glColor3f(0, 0, 0);
 		glBegin(GL_LINES);
-		vec path = glm::normalize(norm);
+		
 		for (size_t i = 0; i < points.size(); i++)
 		{
+			vec path = normals[i];
 			vec point = points[i];
 			glVertex3fv(glm::value_ptr(point));
 			glVertex3fv(glm::value_ptr(point+3.0f*path));
@@ -83,6 +148,27 @@ public:
 		}
 
 		glBegin(GL_POLYGON);
+		for (size_t i = 0; i < points.size(); i++)
+		{
+			//glNormal3fv(glm::value_ptr(normals[i]));
+			glVertex3fv(glm::value_ptr(points[i]));
+		}
+		glEnd();
+	}
+
+	void DrawCarcass()
+	{
+		//glTranslatef(0,0,7);
+		if (points.size() > 3)
+		{
+			glColor3f(1, 0, 0);
+		}
+		else
+		{
+			glColor3f(1, 1, 1);
+		}
+
+		glBegin(GL_LINE_LOOP);
 		for (size_t i = 0; i < points.size(); i++)
 		{
 			glNormal3fv(glm::value_ptr(normals[i]));
@@ -124,10 +210,10 @@ public:
 	vec way;
 	vector<Primal*> primals;
 
-	//ToDO 
-	/*void BuildSmoothNormals()
+	
+	void BuildSmoothNormals()
 	{
-		std::unordered_map<vec, vec, vec> norms;
+		std::unordered_map<vec, vec, KeyFuncs, KeyFuncs> norms;
 		for (int i = 2; i < primals.size(); i++)
 		{
 			for (size_t j = 0; j < primals[i]->points.size(); j++)
@@ -148,9 +234,20 @@ public:
 			for (size_t j = 0; j < primals[i]->points.size(); j++)
 			{
 				primals[i]->normals[j] = glm::normalize(norms[primals[i]->points[j]]);
+				printf("primal: %d, point (%f, %f, %f), normal(%f, %f, %f)\n", i, primals[i]->points[j].x, primals[i]->points[j].y, primals[i]->points[j].z,
+					primals[i]->normals[j].x, primals[i]->normals[j].y, primals[i]->normals[j].z);
 			}
 		}
-	}*/
+	}
+
+	void BadNormalMod()
+	{
+		for (size_t i = 2; i < primals[0]->normals.size(); i++)
+		{
+			primals[i]->Norm();
+		}
+	}
+
 	Primal* BuildPolygon(vec a,vec b, vec c)
 	{
 		Primal* Edge = new Primal({ a, b, c });
@@ -212,20 +309,35 @@ public:
 		{
 			primals[i]->Norm();
 		}
+
+		for (size_t i = 0; i < primals[0]->normals.size(); i++)
+		{
+			primals[0]->normals[i] *= -1;
+		}
 	}
 	
 	void DrawNormals()
 	{
 		for (size_t i = 0; i < primals.size(); i++)
 		{
+		
 			primals[i]->DrawNormals();
 		}
 	}
+
 	void Draw()
+	{
+		for (size_t i =2; i < primals.size(); i++)
+		{
+			primals[i]->Draw();
+		}
+	}
+
+	void DrawCarcass()
 	{
 		for (size_t i = 0; i < primals.size(); i++)
 		{
-			primals[i]->Draw();
+			primals[i]->DrawCarcass();
 		}
 	}
 
@@ -282,12 +394,36 @@ void display() {
 	glRotatef(rotate_y, 0, 1, 0);
 	glScalef(scale, scale, scale);
 	glColor3f(0, 1, 0);
+	glLightfv(GL_LIGHT0, GL_POSITION, pos);
 	toDraw->Draw();
 	toDraw->DrawNormals();
 	DrawAxis();
     glFlush();
     glutSwapBuffers();
 
+}
+
+void displayCube()
+{
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	// Reset transformations
+	glMatrixMode(GL_MODELVIEW);
+	glLoadIdentity();
+	glRotatef(rotate_x, 1, 0, 0);
+	glRotatef(rotate_y, 0, 1, 0);
+	glScalef(scale, scale, scale);
+	glEnable(GL_LIGHTING);
+	glEnable(GL_LIGHT0);
+	float mat[] = { 0.2, 0.2, 0.2, 1 };
+	glLightModelf(GL_LIGHT_MODEL_TWO_SIDE, GL_TRUE);
+	glLightfv(GL_LIGHT0, GL_POSITION, pos);
+	glMaterialfv(GL_FRONT, GL_AMBIENT_AND_DIFFUSE, mat);
+	glEnable(GL_COLOR_MATERIAL);
+	glColor3f(0, 1, 0);
+	glutSolidSphere(5, 256, 256);
+	DrawAxis();
+	glFlush();
+	glutSwapBuffers();
 }
 
 void MouseButton(int button, int state, int x, int y) {
@@ -351,7 +487,10 @@ void initialize()
 	glOrtho(-10,10,-10,10, 0,1000);
 	//gluPerspective(win.field_of_view_angle, aspect, win.z_near, win.z_far);		
 	glTranslatef(0.0f, 0.0f, -10.0f);
-	glEnable(GL_LIGHTING); glEnable(GL_LIGHT0); float pos[] = { 0, 0, 1, 1 }; float mat[] = { 0.2, 0.2, 0.2, 1 }; glLightModelf(GL_LIGHT_MODEL_TWO_SIDE, GL_TRUE); glLightfv(GL_LIGHT0, GL_POSITION, pos); glMaterialfv(GL_FRONT, GL_AMBIENT_AND_DIFFUSE, mat); glEnable(GL_COLOR_MATERIAL);
+
+	//свет
+	
+	//конец света
 
 	// set up a perspective projection matrix
 	glMatrixMode(GL_MODELVIEW);													// specify which matrix is the current matrix
@@ -397,18 +536,18 @@ void specialKeys(int key, int x, int y) {
 
 int main(int argc, char** argv)
 {
-	Primal* sec = new Primal(
+	/*Primal* sec = new Primal(
 		{
 			{-1,0,0},
-			{0,1,0},
-			{1,0,0},
+			{-1,1,0},
+			{1,1,0},
+			{1,0,0}
 		}
 	);
 	Edition myEdition({ 0,0,0 }, { 0,1,0 });
 	myEdition.Build(sec);
 	toDraw = &myEdition;
-	vec tmp = glm::vec4{ 1,1,1,2 };
-	float* f = glm::value_ptr(tmp);
+	toDraw->BuildSmoothNormals();*/
 	// set window values
 	win.width = 640;
 	win.height = 480;
@@ -423,8 +562,8 @@ int main(int argc, char** argv)
 	glutInitWindowSize(win.width, win.height);					// set window size
 	glutCreateWindow(win.title);								// create Window
     glEnable(GL_DEPTH_TEST);
-	glutDisplayFunc(display);									// register Display Function
-	glutIdleFunc(display);									// register Idle Function
+	glutDisplayFunc(displayCube);									// register Display Function
+	glutIdleFunc(displayCube);									// register Idle Function
     glutSpecialFunc(specialKeys);							// register Keyboard Handler
 	
 	//cameraRotationFunctions
