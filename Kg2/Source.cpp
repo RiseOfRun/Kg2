@@ -1,57 +1,575 @@
+п»ї
 #include <stdlib.h>
 #include <iostream>
 #include <vector>	
+#include <unordered_map>
 #include <GL/freeglut.h>
-#include <GL/glut.h>
+#include <glm/mat4x4.hpp>
+#include <glm/glm.hpp>
+#include <glm/ext.hpp>
+#define KEY_ESCAPE 27
 using namespace std;
+typedef glm::vec3 vec;
 
+float pos[] = { 0, 0, 10, 1 };
+float rotate_x = 0, rotate_y = 0;
+int old_x = -1;
+int old_y = -1;
+float scale = 1;
 
-bool drawing = false;
-GLint Width = 512, Height = 512;
-vector<GLfloat> CurrentCol = { 1,0,0 };
-int currentPolygonIndex = -1;
-/*Функция обрабатывет действия мыши*/
-/*Функция вывода на экран*/
-void Display(void)
+void DrawCube()
 {
-	glClearColor(0, 0, 0, 1);
-	glClear(GL_COLOR_BUFFER_BIT);
-	glColor3ub(255, 0, 0);
-	glFinish();
+	glBegin(GL_QUADS);                // Begin drawing the color cube with 6 quads
+	  // Top face (y = 1.0f)
+	  // Define vertices in counter-clockwise (CCW) order with normal pointing out
+	glColor3f(0.0f, 1.0f, 0.0f);     // Green
+	glVertex3f(1.0f, 1.0f, -1.0f);
+	glVertex3f(-1.0f, 1.0f, -1.0f);
+	glVertex3f(-1.0f, 1.0f, 1.0f);
+	glVertex3f(1.0f, 1.0f, 1.0f);
+
+	// Bottom face (y = -1.0f)
+	glColor3f(1.0f, 0.5f, 0.0f);     // Orange
+	glVertex3f(1.0f, -1.0f, 1.0f);
+	glVertex3f(-1.0f, -1.0f, 1.0f);
+	glVertex3f(-1.0f, -1.0f, -1.0f);
+	glVertex3f(1.0f, -1.0f, -1.0f);
+
+	// Front face  (z = 1.0f)
+	glColor3f(1.0f, 0.0f, 0.0f);     // Red
+	glVertex3f(1.0f, 1.0f, 1.0f);
+	glVertex3f(-1.0f, 1.0f, 1.0f);
+	glVertex3f(-1.0f, -1.0f, 1.0f);
+	glVertex3f(1.0f, -1.0f, 1.0f);
+
+	// Back face (z = -1.0f)
+	glColor3f(1.0f, 1.0f, 0.0f);     // Yellow
+	glVertex3f(1.0f, -1.0f, -1.0f);
+	glVertex3f(-1.0f, -1.0f, -1.0f);
+	glVertex3f(-1.0f, 1.0f, -1.0f);
+	glVertex3f(1.0f, 1.0f, -1.0f);
+
+	// Left face (x = -1.0f)
+	glColor3f(0.0f, 0.0f, 1.0f);     // Blue
+	glVertex3f(-1.0f, 1.0f, 1.0f);
+	glVertex3f(-1.0f, 1.0f, -1.0f);
+	glVertex3f(-1.0f, -1.0f, -1.0f);
+	glVertex3f(-1.0f, -1.0f, 1.0f);
+
+	// Right face (x = 1.0f)
+	glColor3f(1.0f, 0.0f, 1.0f);     // Magenta
+	glVertex3f(1.0f, 1.0f, -1.0f);
+	glVertex3f(1.0f, 1.0f, 1.0f);
+	glVertex3f(1.0f, -1.0f, 1.0f);
+	glVertex3f(1.0f, -1.0f, -1.0f);
+	glEnd();  // End of drawing color-cube
 }
 
-/* Функция вызывается при изменении размеров окна */
-void Reshape(GLint w, GLint h)
+struct KeyFuncs
 {
-	/*Отображаемый цвет*/
-	Width = w; Height = h;
-	/* устанавливаем размеры области отображения */
-	glViewport(0, 0, w, h);
-	/* ортографическая проекция */
-	glMatrixMode(GL_PROJECTION);
+	size_t operator()(const vec& k)const
+	{
+		return std::hash<float>()(k.x) ^ std::hash<float>()(k.y) ^ std::hash<float>()(k.z);
+	}
+
+	bool operator()(const vec& a, const vec& b)const
+	{
+		return a.x == b.x && a.y == b.y && a.z==b.z;
+	}
+};
+
+class Primal
+{
+public:
+	vector<vec> points;
+	vector<vec> normals;
+	vector<vector<vec>> edges;
+	vec norm;
+	void Norm()
+	{
+		vec a = points[0];
+		vec b = points[1];
+		vec c = points[2];
+		vec ba = b - a;
+		vec ca = c - a;
+		norm = -glm::cross(ba, ca);
+		normals = vector<vec>(3);
+		for (size_t i = 0; i < points.size(); i++)
+		{
+			normals[i] = norm;
+		}
+	}
+
+	
+
+	void ReBuildEdges()
+	{
+		edges = vector<vector<vec>>(0);
+		for (size_t i = 0; i < points.size() - 1; i++)
+		{
+			vector<vec> edge;
+			edge.push_back(points[i]);
+			edge.push_back(points[i + 1]);
+			edges.push_back(edge);
+		}
+		vector<vec> edge;
+		edge.push_back(points[points.size() - 1]);
+		edge.push_back(points[0]);
+		edges.push_back(edge);
+	}
+
+	void DrawNormals()
+	{
+		
+		glColor3f(0, 0, 0);
+		glBegin(GL_LINES);
+		
+		for (size_t i = 0; i < points.size(); i++)
+		{
+			vec path = normals[i];
+			vec point = points[i];
+			glVertex3fv(glm::value_ptr(point));
+			glVertex3fv(glm::value_ptr(point+3.0f*path));
+		}
+		
+		glEnd();
+	}
+
+	void Draw()
+	{
+		//glTranslatef(0,0,7);
+		if (points.size()>3)
+		{
+			glColor3f(1, 0, 0);
+		}
+		else
+		{
+			glColor3f(0, 1, 0);
+		}
+
+		glBegin(GL_POLYGON);
+		for (size_t i = 0; i < points.size(); i++)
+		{
+			//glNormal3fv(glm::value_ptr(normals[i]));
+			glVertex3fv(glm::value_ptr(points[i]));
+		}
+		glEnd();
+	}
+
+	void DrawCarcass()
+	{
+		//glTranslatef(0,0,7);
+		if (points.size() > 3)
+		{
+			glColor3f(1, 0, 0);
+		}
+		else
+		{
+			glColor3f(1, 1, 1);
+		}
+
+		glBegin(GL_LINE_LOOP);
+		for (size_t i = 0; i < points.size(); i++)
+		{
+			glNormal3fv(glm::value_ptr(normals[i]));
+			glVertex3fv(glm::value_ptr(points[i]));
+		}
+		glEnd();
+	}
+
+	vec Central()
+	{
+		int i = 0;
+		vec result = vec(0);
+		for (i = 0; i < points.size(); i++)
+		{
+			result += points[i];
+		}
+		result = result / (float)i;
+		return result;
+	}
+
+	Primal(vector<vec> points)
+	{
+		this->points = points;
+		ReBuildEdges();
+	}
+
+	Primal() {
+
+	}
+	~Primal() {
+
+	}
+};
+
+class Edition
+{
+public:
+	vec position;
+	vec way;
+	vector<Primal*> primals;
+
+	
+	void BuildSmoothNormals()
+	{
+		std::unordered_map<vec, vec, KeyFuncs, KeyFuncs> norms;
+		for (int i = 2; i < primals.size(); i++)
+		{
+			for (size_t j = 0; j < primals[i]->points.size(); j++)
+			{
+				if (!norms.count(primals[i]->points[j]))
+				{
+					norms[primals[i]->points[j]] = primals[i]->normals[j];
+				}
+				else
+				{
+					norms[primals[i]->points[j]] += primals[i]->normals[j];
+				}
+			}
+		}
+
+		for (int i = 2; i < primals.size(); i++)
+		{
+			for (size_t j = 0; j < primals[i]->points.size(); j++)
+			{
+				primals[i]->normals[j] = glm::normalize(norms[primals[i]->points[j]]);
+				printf("primal: %d, point (%f, %f, %f), normal(%f, %f, %f)\n", i, primals[i]->points[j].x, primals[i]->points[j].y, primals[i]->points[j].z,
+					primals[i]->normals[j].x, primals[i]->normals[j].y, primals[i]->normals[j].z);
+			}
+		}
+	}
+
+	void BadNormalMod()
+	{
+		for (size_t i = 2; i < primals[0]->normals.size(); i++)
+		{
+			primals[i]->Norm();
+		}
+	}
+
+	Primal* BuildPolygon(vec a,vec b, vec c)
+	{
+		Primal* Edge = new Primal({ a, b, c });
+		Edge->Norm();
+		return Edge;
+	}
+
+	void Build(Primal* section)
+	{
+		//РїРѕРІРѕСЂР°С‡РёРІР°РµРј СЃРµС‡РµРЅРёРµ РІ РЅР°РїСЂР°РІР»РµРЅРёРё
+		glm::mat4 mat = glm::mat4(1.0f);
+		vec norm = glm::normalize(way);
+		vec rotationAxe = glm::cross({ 0,0,1 }, norm);
+		if (way != vec{0, 0, 1})
+		{
+			rotationAxe = glm::normalize(rotationAxe);
+		}
+		float angle = acosf(glm::dot({ 0,0,1 }, norm));
+		mat = glm::rotate(mat, angle, rotationAxe);
+		for (size_t i = 0; i < section->points.size(); i++)
+		{
+			glm::vec4 tmp = { section->points[i],1 };
+			section->points[i] = mat * tmp;
+		}
+		section->norm = norm;
+		section->ReBuildEdges();
+		primals.push_back(new Primal(*section));
+
+		//СЃРґРІРёРіР°РµРј СЃРµС‡РµРЅРёРµ
+		for (size_t i = 0; i < section->points.size(); i++)
+		{
+			section->points[i] +=norm;
+		}
+
+		//РїРѕРІРѕСЂР°С‡РёРІР°РµРј РЅР° Р·Р°РґР°РЅРЅС‹Р№ СѓРіРѕР»
+
+		mat = glm::mat4(1.0f);
+		mat = glm::rotate(mat, (float)glm::radians(35.0f), norm);
+		for (size_t i = 0; i < section->points.size(); i++)
+		{
+			glm::vec4 tmp = { section->points[i],1 };
+			section->points[i] = mat * tmp;
+		}
+		section->ReBuildEdges();
+		primals.push_back(new Primal(*section));
+
+		//СЃС‚СЂРѕРёРј РґРѕРїРѕР»РЅРёС‚РµР»СЊРЅС‹Рµ РіСЂР°РЅРё
+		for (size_t i = 0; i < section->edges.size(); i++)
+		{
+			vec a1 = primals[0]->edges[i][0];
+			vec a2 = primals[0]->edges[i][1];
+			vec b1 = primals[1]->edges[i][0];
+			vec b2 = primals[1]->edges[i][1];
+			primals.push_back(BuildPolygon(a1, a2, b1));
+			primals.push_back(BuildPolygon(a2, b2, b1));
+		}
+
+		for (size_t i = 0; i < primals.size(); i++)
+		{
+			primals[i]->Norm();
+		}
+
+		for (size_t i = 0; i < primals[0]->normals.size(); i++)
+		{
+			primals[0]->normals[i] *= -1;
+		}
+	}
+	
+	void DrawNormals()
+	{
+		for (size_t i = 0; i < primals.size(); i++)
+		{
+		
+			primals[i]->DrawNormals();
+		}
+	}
+
+	void Draw()
+	{
+		for (size_t i =2; i < primals.size(); i++)
+		{
+			primals[i]->Draw();
+		}
+	}
+
+	void DrawCarcass()
+	{
+		for (size_t i = 0; i < primals.size(); i++)
+		{
+			primals[i]->DrawCarcass();
+		}
+	}
+
+
+
+	Edition(vec pos, vec way)
+	{
+		position = pos;
+		this->way = way;
+	}
+	Edition() {}
+	~Edition() {}
+	
+};
+
+typedef struct {
+	int width;
+	int height;
+	char* title;
+
+	float field_of_view_angle;
+	float z_near;
+	float z_far;
+} glutWindow;
+
+glutWindow win;
+
+Edition* toDraw;
+
+void DrawAxis()
+{
+	glBegin(GL_LINES);
+	glColor3f(1, 0, 0);
+	glVertex3f(-10, 0, 0);
+	glVertex3f(10, 0, 0);
+	glColor3f(0, 1, 0);
+	glVertex3f(0, -10, 0);
+	glVertex3f(0, 10, 0);
+	glColor3f(0, 0, 1);
+	glVertex3f(0, 0, -10);
+	glVertex3f(0, 0, 10);
+	glEnd();
+}
+
+void display() {
+    GLfloat params[16];
+
+    //  Clear screen and Z-buffer
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    // Reset transformations
+    glMatrixMode(GL_MODELVIEW);
 	glLoadIdentity();
-	glOrtho(0, w, 0, h, -1.0, 1.0);
+	glRotatef(rotate_x, 1, 0, 0);
+	glRotatef(rotate_y, 0, 1, 0);
+	glScalef(scale, scale, scale);
+	glColor3f(0, 1, 0);
+	glLightfv(GL_LIGHT0, GL_POSITION, pos);
+	toDraw->Draw();
+	toDraw->DrawNormals();
+	DrawAxis();
+    glFlush();
+    glutSwapBuffers();
+
+}
+
+void displayCube()
+{
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	// Reset transformations
 	glMatrixMode(GL_MODELVIEW);
 	glLoadIdentity();
-	glutPostRedisplay();
+	glRotatef(rotate_x, 1, 0, 0);
+	glRotatef(rotate_y, 0, 1, 0);
+	glScalef(scale, scale, scale);
+	glEnable(GL_LIGHTING);
+	glEnable(GL_LIGHT0);
+	float mat[] = { 0.2, 0.2, 0.2, 1 };
+	glLightModelf(GL_LIGHT_MODEL_TWO_SIDE, GL_TRUE);
+	glLightfv(GL_LIGHT0, GL_POSITION, pos);
+	glMaterialfv(GL_FRONT, GL_AMBIENT_AND_DIFFUSE, mat);
+	glEnable(GL_COLOR_MATERIAL);
+	glColor3f(0, 1, 0);
+	glutSolidSphere(5, 256, 256);
+	DrawAxis();
+	glFlush();
+	glutSwapBuffers();
 }
 
-/* Функция обрабатывает сообщения c клавиатуры */
-void Keyboard(unsigned char key, int x, int y)
-{
-#define ESCAPE '\033'
-	if (key == ESCAPE) exit(0);
+void MouseButton(int button, int state, int x, int y) {
 	
+
+	if (button == 3)
+	{
+		scale += 0.05;
+		if (scale<0)
+		{
+			scale = 0;
+		}
+		return;
+	}
+
+	if (button ==4)
+	{
+		scale -= 0.05;
+		if (scale<0)
+		{
+			scale = 0;
+		}
+		return;
+	}
+	// only start motion if the left button is pressed
+	if (button == GLUT_LEFT_BUTTON) {
+
+		// when the button is released
+		if (state == GLUT_UP) {
+			old_x = -1;
+			old_y = -1;
+		}
+		else {// state = GLUT_DOWN
+			old_x = x;
+			old_y = y;
+		}
+	}
 }
 
-void main(int argc, char* argv[])
+void RotateTheCamera(int x, int y)
 {
-	glutInit(&argc, argv);
-	glutInitDisplayMode(GLUT_RGB);
-	glutInitWindowSize(Width, Height);
-	glutCreateWindow("glut");
-	glutDisplayFunc(Display);
-	glutReshapeFunc(Reshape);
-	glutKeyboardFunc(Keyboard);
-	glutMainLoop();
+
+	if (old_x>=0) {
+		int dx = old_x - x;
+		int dy = old_y - y;
+
+		rotate_y -= dx;
+		rotate_x -= dy;
+		/* do something with dx and dy */
+	}
+	old_x = x;
+	old_y = y;
+}
+
+void initialize()
+{
+	glMatrixMode(GL_PROJECTION);	// select projection matrix
+	//glViewport(0, 0, win.width, win.height);									// set the viewport	
+	glLoadIdentity();															// reset projection matrix
+	GLfloat aspect = (GLfloat)win.width / win.height;
+	glOrtho(-10,10,-10,10, 0,1000);
+	//gluPerspective(win.field_of_view_angle, aspect, win.z_near, win.z_far);		
+	glTranslatef(0.0f, 0.0f, -10.0f);
+
+	//СЃРІРµС‚
+	
+	//РєРѕРЅРµС† СЃРІРµС‚Р°
+
+	// set up a perspective projection matrix
+	glMatrixMode(GL_MODELVIEW);													// specify which matrix is the current matrix
+	//glShadeModel(GL_SMOOTH);
+	//glClearDepth(1.0f);														// specify the clear value for the depth buffer
+	//glEnable(GL_DEPTH_TEST);
+	//glDepthFunc(GL_LEQUAL);
+	//glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST);						// specify implementation-specific hints
+	//Ligt
+	glClearColor(0.23, 0.23, 0.23, 1.0);											// specify clear values for the color buffers								
+}
+
+
+void specialKeys(int key, int x, int y) {
+
+    //  Right arrow - increase rotation by 5 degree
+    if (key == GLUT_KEY_RIGHT)
+        rotate_y += 5;
+
+    //  Left arrow - decrease rotation by 5 degree
+    else if (key == GLUT_KEY_LEFT)
+        rotate_y -= 5;
+
+    else if (key == GLUT_KEY_UP)
+        rotate_x += 5;
+
+	else if (key == GLUT_KEY_DOWN)
+	{
+		rotate_x -= 5;												// specify which matrix is the current matrix
+	}
+
+	else if (key==32)
+	{
+		rotate_x = 0;
+		rotate_y = 0;
+		scale = 1;
+	}
+
+    //  Request display update
+    glutPostRedisplay();
+
+}
+
+int main(int argc, char** argv)
+{
+	/*Primal* sec = new Primal(
+		{
+			{-1,0,0},
+			{-1,1,0},
+			{1,1,0},
+			{1,0,0}
+		}
+	);
+	Edition myEdition({ 0,0,0 }, { 0,1,0 });
+	myEdition.Build(sec);
+	toDraw = &myEdition;
+	toDraw->BuildSmoothNormals();*/
+	// set window values
+	win.width = 640;
+	win.height = 480;
+	win.field_of_view_angle = 45;
+	win.z_near = 1.0f;
+	win.z_far = 500.0f;
+
+	// initialize and run program
+	glutInit(&argc, argv);                                      // GLUT initialization
+	glutSetOption(GLUT_MULTISAMPLE, 8);
+	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB | GLUT_DEPTH | GLUT_MULTISAMPLE);;  // Display Mode
+	glutInitWindowSize(win.width, win.height);					// set window size
+	glutCreateWindow(win.title);								// create Window
+    glEnable(GL_DEPTH_TEST);
+	glutDisplayFunc(displayCube);									// register Display Function
+	glutIdleFunc(displayCube);									// register Idle Function
+    glutSpecialFunc(specialKeys);							// register Keyboard Handler
+	
+	//cameraRotationFunctions
+	glutMouseFunc(MouseButton);
+	glutMotionFunc(RotateTheCamera);
+	initialize();
+	glutMainLoop();												// run GLUT mainloop
+	return 0;
 }
