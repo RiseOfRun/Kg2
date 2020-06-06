@@ -233,6 +233,12 @@ void display()
 {
 	glClearColor(0.5, 0.5, 0.5, 1);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+	glm::mat4 mat = glm::mat4(1.0f);
+	mat = glm::rotate(mat, (float)glm::radians(35.f), { 0,1,0 });
+	mainCamera.u = mat*mainCamera.u;
+	mainCamera.w *= mat;
+	mainCamera.v *= mat;
 	color Col;
 
 	for (int i = 0; i < win.width; i++)
