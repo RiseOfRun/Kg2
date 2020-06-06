@@ -14,6 +14,11 @@
 using namespace std;
 typedef glm::vec3 vec;
 
+glm::vec4 pos = { 0, 5, 10, 0 };
+float rotate_x = 0, rotate_y = 0;
+float old_x = -1;
+float old_y = -1;
+
 float  PI_F = 3.14159265358979f;
 
 struct color
@@ -236,7 +241,7 @@ void RotateCamera(float r_y, float r_x)
 	tmp.push_back({ mainCamera.u,1 });
 	tmp.push_back({ mainCamera.v,1 });
 	glm::mat4 mat = glm::mat4(1.0f);
-	mat = glm::rotate(mat, glm::radians(-r_y), { 0,1,0 });
+	mat = glm::rotate(mat, glm::radians(r_y), { 0,1,0 });
 	mat = glm::rotate(mat, glm::radians(r_x), { 1,0,0 });
 	mainCamera.w = tmp[0] * mat;
 	mainCamera.u = tmp[1] * mat;
@@ -249,7 +254,7 @@ void display()
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	color Col;
 	mainCamera = camera();
-	RotateCamera(35.f, 10.f);
+	RotateCamera(rotate_y,rotate_x);
 
 	for (int i = 0; i < win.width; i++)
 	{
@@ -305,34 +310,34 @@ void MouseButton(int button, int state, int x, int y) {
 	//	}
 	//	return;
 	//}
-	//// only start motion if the left button is pressed
-	//if (button == GLUT_LEFT_BUTTON) {
+	// only start motion if the left button is pressed
+	if (button == GLUT_LEFT_BUTTON) {
 
-	//	// when the button is released
-	//	if (state == GLUT_UP) {
-	//		old_x = -1;
-	//		old_y = -1;
-	//	}
-	//	else {// state = GLUT_DOWN
-	//		old_x = x;
-	//		old_y = y;
-	//	}
-	//}
+		// when the button is released
+		if (state == GLUT_UP) {
+			old_x = -1;
+			old_y = -1;
+		}
+		else {// state = GLUT_DOWN
+			old_x = x;
+			old_y = y;
+		}
+	}
 }
 
 void RotateTheCamera(int x, int y)
 {
 
-	//if (old_x >= 0) {
-	//	int dx = old_x - x;
-	//	int dy = old_y - y;
+	if (old_x >= 0) {
+		int dx = old_x - x;
+		int dy = old_y - y;
 
-	//	rotate_y -= dx;
-	//	rotate_x -= dy;
-	//	/* do something with dx and dy */
-	//}
-	//old_x = x;
-	//old_y = y;
+		rotate_y -= dx;
+		rotate_x -= dy;
+		/* do something with dx and dy */
+	}
+	old_x = x;
+	old_y = y;
 }
 
 void initialize()
