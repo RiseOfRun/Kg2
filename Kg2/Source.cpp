@@ -229,17 +229,27 @@ vec GetPixelColor(int r, int c)
 	return newColor;
 }
 
+void RotateCamera(float r_y, float r_x)
+{
+	vector<glm::vec4> tmp;
+	tmp.push_back({mainCamera.w,1 });
+	tmp.push_back({ mainCamera.u,1 });
+	tmp.push_back({ mainCamera.v,1 });
+	glm::mat4 mat = glm::mat4(1.0f);
+	mat = glm::rotate(mat, glm::radians(-r_y), { 0,1,0 });
+	mat = glm::rotate(mat, glm::radians(r_x), { 1,0,0 });
+	mainCamera.w = tmp[0] * mat;
+	mainCamera.u = tmp[1] * mat;
+	mainCamera.v = tmp[2] * mat;
+}
+
 void display() 
 {
 	glClearColor(0.5, 0.5, 0.5, 1);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-	glm::mat4 mat = glm::mat4(1.0f);
-	mat = glm::rotate(mat, (float)glm::radians(35.f), { 0,1,0 });
-	mainCamera.u = mat*mainCamera.u;
-	mainCamera.w *= mat;
-	mainCamera.v *= mat;
 	color Col;
+	mainCamera = camera();
+	RotateCamera(35.f, 10.f);
 
 	for (int i = 0; i < win.width; i++)
 	{
