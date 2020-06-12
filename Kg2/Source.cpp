@@ -20,17 +20,16 @@ float old_x = -1;
 float old_y = -1;
 
 float  PI_F = 3.14159265358979f;
-
 struct color
 {
 	unsigned char R = 0, G = 0, B = 0;
 };
 
 vec operator * (color vec, float num) {
-	return { vec.R/255. * num, vec.G/255. * num, vec.B/255 * num };
+	return { vec.R / 255. * num, vec.G / 255. * num, vec.B / 255 * num };
 }
 
-struct Material 
+struct Material
 {
 	Material(const double& ka, const double& kd, const double& ks, int r, int g, int b, const double& spec) :ka(ka), kd(kd), ks(ks), specularExponent(spec) { Color.R = r, Color.G = g, Color.B = b; }
 	Material() {}
@@ -42,6 +41,67 @@ struct Material
 };
 
 
+class Shape
+{
+public:
+	bool reflaction = false;
+	Material essense = Material(0.9, 0.7, 0.5, 80, 0, 120, 30.);;
+	Shape()
+	{
+	}
+	~Shape()
+	{
+	}
+	virtual float GetRayDistance(vec e, vec d,vec& diraction)
+	{
+		return 0;
+	}
+
+private:
+
+};
+
+vector<Shape *> shapes;
+
+class Plane : public Shape
+{
+public:
+	
+	vec norm;
+	vec position;
+	float d;
+
+	Plane()
+	{
+	}
+
+	Plane(vec position, vec norm)
+	{
+		this->norm = glm::normalize(norm);
+		this->position = position;
+		d = glm::dot(position,norm);
+	}
+
+	~Plane()
+	{
+	}
+
+	float GetRayDistance(vec e, vec dir, vec& diraction)
+	{
+		
+		float t = (d - glm::dot(e, norm)) / (glm::dot(dir, norm));
+
+		if (t<0)
+		{
+			return 0;
+		}
+
+		diraction = norm;
+		return t;
+	}
+};
+
+
 struct
 {
 	bool smoothNormals = false, light = true, viewNormals = true, filled = true, viewAxes = true;
@@ -50,17 +110,17 @@ struct
 
 struct light
 {
-	vec pos = { -5,-5,-5 };
-	float intense = 1;
+	vec pos = { 2, 0.1, 2 };
+	float intense = 1.2;
 } Light_0;
 
 struct camera
 {
-	vec position = { 0,0,0 };
+	vec position = { 0,0,-3 };
 	float fov = 60;
 	float N = 1;
 	float AspectR = 3.0 / 4.0;
-	vec w = { 0,0,1 }, v = { -1, 0, 0 }, u = { 0,-1,0 };
+	vec w = { 0,0,1 }, v = { 1, 0, 0 }, u = { 0,1,0 };
 	int width = 640, high = 480;
 };
 
@@ -81,27 +141,125 @@ struct KeyFuncs
 	}
 };
 
-class Shape
+
+
+class Cube : public Shape
 {
 public:
-	virtual float GetRayDistance(vec e, vec d)
+	vector<vec> vertexes;
+	vector<vector<int>> edges;
+	vector<vec> norm;
+	vector<float> d;
+	void Build(vec position, float a, float b,float c, float r_x, float r_y)
 	{
-		return 0;
+		vec x = { a/2,0,0 };
+		vec y = { 0,b/2,0 };
+		vec z = { 0,0,c/2 };
+		vertexes.push_back(-x - y - z);
+		vertexes.push_back(-x + y - z);
+		vertexes.push_back(y + x - z);
+		vertexes.push_back(-y + x - z);
+		vertexes.push_back(-x - y + z);
+		vertexes.push_back(+ y - x + z);
+		vertexes.push_back(+ y + x + z);
+		vertexes.push_back(+ x - y + z);
+		glm::mat4 mat = glm::mat4(1.0f);
+		mat = glm::rotate(mat, glm::radians(r_y), { 0,1,0 });
+		mat = glm::rotate(mat, glm::radians(r_x), { 1,0,0 });
+		for (size_t i = 0; i < vertexes.size(); i++)
+		{
+			glm::vec4 tmp = { vertexes[i], 1 };
+			vertexes[i] = tmp * mat;
+			vertexes[i] += position;
+		}
+		Build();
 	}
+	void Build()
+	{
+		edges = {
+			{0,3,2},
+			{2,3,7},
+			{4,5,6},
+			{0,1,5},
+			{1,2,6},
+			{0,4,7}
+		};
+		for (size_t i = 0; i < 6; i++)
+		{
+			vec v0 = vertexes[edges[i][1]];
+			vec v1 = vertexes[edges[i][0]];
+			vec v2 = vertexes[edges[i][2]];
+			vec v10 = v0 - v1;
+			vec v20 = v2 - v1;
+			norm.push_back(-glm::normalize(glm::cross(v10,v20)));
+			d.push_back(glm::dot(norm[i],v1));
+		}
+	}
+	float GetRayDistance(vec e, vec dir,vec & diraction)
+	{
+		double fMax = 1;
+		double bMin = 1e+25;
+		float t = FLT_MAX;
+		vec df, db;
+		for (int i = 0; i < 6; i++) {
+			// Пересечение луча и плоскости
+			double s = glm::dot(dir, norm[i]);
+			if (s == 0) { // луч и плоскость параллельны
+				if (glm::dot(e, norm[i]) > d[i]) {
+					return 0; // пересечения нет
+				}
+			}
+			// Если непараллельно плоскости
+			t = (d[i] - glm::dot(e, norm[i])) / s;
+			if (glm::dot(dir, norm[i]) < 0) { // если пересечение "сверху"
+				if (t > fMax) {
+					if (t > bMin) {
+						return 0; // пересечения нет
+					}
+					fMax = t;
+					df = norm[i];
+				}
+			}
+			else { // если пересечение "снизу"
+				if (t < bMin) {
+					if (t < 0 || t < fMax) {
+						return 0; // пересечения нет
+					}
+					bMin = t;
+					db = norm[i];
+
+				}
+			}
+		}
+		if (fMax>0)
+		{
+			t = fMax;
+			diraction = -df;
+		}
+		else
+		{
+			t = bMin;
+			diraction = -db;
+			
+		}
+		/*t = fMax > 0 ? fMax : bMin;*/
+		return t;
+	}
+	Cube() {}
+	~Cube() {}
 
 private:
 
 };
 
 
-class Sphere : Shape
+class Sphere : public Shape
 {
 public:
-	Material essense;
 	vec C;
 	float r;
 	
-	float GetRayDistance(vec e, vec d)
+	float GetRayDistance(vec e, vec d, vec & diraction)
 	{
 		vec s = e-C;
 		float a = glm::dot(d,d);
@@ -119,8 +277,15 @@ public:
 		float t = (-b-sqrt(D))/a;
 		if (t<1)
 		{
-			return t = (-b + sqrt(D)) / a;
+			t = (-b + sqrt(D)) / a;
 		}
+
+		if (t<1)
+		{
+			return 0;
+		}
+		vec q = e + d*t;
+		diraction = glm::normalize((q - C));
 		return t;
 	}
 
@@ -142,6 +307,7 @@ private:
 };
 
 Sphere MySphere(vec(0,0,3), 1);
+
 typedef struct {
 	int width;
 	int height;
@@ -181,23 +347,54 @@ vec Reflect(vec L, vec N) {  //отраженный луч h
 	return L - glm::cross(2.f*glm::cross(L, N), N);
 }
 
-vec Fong(vec e, vec d, float t)
+vec Fong(vec e, vec d, float t, vec norm, Material essense)
 {
 	float diffuseLightIntensity = 0, specularLightIntensity = 0, ambientLigthIntensity = 0.5;
 
 	vec pointHit = e + d * t;
-	color curColor = MySphere.essense.Color;
+	color curColor = essense.Color;
 
 
 	vec lightDir = glm::normalize(-Light_0.pos + pointHit);//падающий луч l
-	vec PointToCenter = glm::normalize((pointHit - MySphere.C)); //нормаль в обратную сторону n
-		ambientLigthIntensity *= MySphere.essense.ka;
+	vec PointToCenter = norm; //нормаль в обратную сторону n
+		ambientLigthIntensity *= essense.ka;
 		float test = glm::dot(lightDir, PointToCenter);
-		diffuseLightIntensity += Light_0.intense * max(0.f, glm::dot(lightDir, PointToCenter)) * MySphere.essense.kd;
+		diffuseLightIntensity += Light_0.intense * max(0.f, glm::dot(lightDir, PointToCenter)) * essense.kd;
 
-		specularLightIntensity += powf(max(0.f, (glm::dot(PointToCenter, Reflect(lightDir, PointToCenter)))), MySphere.essense.specularExponent) * Light_0.intense * MySphere.essense.ks;
+		specularLightIntensity += powf(max(0.f, (glm::dot(PointToCenter, Reflect(lightDir, PointToCenter)))), essense.specularExponent) * Light_0.intense * essense.ks;
 
 		return curColor * ambientLigthIntensity + curColor * diffuseLightIntensity + vec(1.,1.,1.) * specularLightIntensity; //+ReflectColor * MySphere.essense.kr;
+}
+
+int FindRayIntersaction(vec & diraction,float &t, Shape & shape,vec e, vec d)
+{
+	int count = shapes.size();
+	float tmin = FLT_MAX;
+	vec minN;
+	bool cross = false;
+	for (size_t i = 0; i < count; i++)
+	{
+		t = shapes[i]->GetRayDistance(e, d, diraction);
+		if (t < tmin && t != 0)
+		{
+			cross = true;
+			shape = *shapes[i];
+			tmin = t;
+			minN = diraction;
+		}
+	}
+
+	if (cross)
+	{
+		t = tmin;
+		diraction = minN;
+		return 1;
+	}
+	else
+	{
+		return 0;
+	}
+
 }
 
 vec GetPixelColor(int r, int c)
@@ -214,22 +411,32 @@ vec GetPixelColor(int r, int c)
 	float vr = -H + H * 2 * r / nr;
 	vec d = mainCamera.N * w + uc * u + vr * v;
 
-	//пересечение луча со сферой
-	float t = MySphere.GetRayDistance(e, d);
-	MySphere.essense = Material(0.9, 0.7, 0.5, 0, 80, 9, 30.);
+	//пересечение луча
+
+	Shape shape;
+	vec diraction;
+	float t;
+
+	int cross = FindRayIntersaction(diraction,t, shape, e, d);
+	while (cross != 0 && shape.reflaction == true)
+	{
+		vec point = e + d * t;
+		d = -Reflect(d, diraction);
+		e = point;
+		cross = FindRayIntersaction(diraction, t, shape, e, d);
+	}
+
 	color pixelcolor;
 
 	vec newColor;
-	if (t != 0)
+	if (cross!=0)
 	{
-		newColor = Fong(e, d, t);
+		newColor = Fong(e, d, t, diraction, shape.essense);
 	}
 	else
 	{
 		newColor = { 0,0,0 };
-
 	}
-
 
 	return newColor;
 }
@@ -241,8 +448,8 @@ void RotateCamera(float r_y, float r_x)
 	tmp.push_back({ mainCamera.u,1 });
 	tmp.push_back({ mainCamera.v,1 });
 	glm::mat4 mat = glm::mat4(1.0f);
-	mat = glm::rotate(mat, glm::radians(r_y), { 0,1,0 });
-	mat = glm::rotate(mat, glm::radians(r_x), { 1,0,0 });
+	mat = glm::rotate(mat, glm::radians(-r_y), { 0,1,0 });
+	mat = glm::rotate(mat, glm::radians(-r_x), { 1,0,0 });
 	mainCamera.w = tmp[0] * mat;
 	mainCamera.u = tmp[1] * mat;
 	mainCamera.v = tmp[2] * mat;
@@ -340,48 +547,7 @@ void RotateTheCamera(int x, int y)
 	old_y = y;
 }
 
-void initialize()
-{
-	glEnable(GL_NORMALIZE);
-	glMatrixMode(GL_PROJECTION);	// select projection matrix
-	glLoadIdentity();															// reset projection matrix
-	GLfloat aspect = (GLfloat)win.width / win.height;
-	gluPerspective(win.field_of_view_angle, aspect, win.z_near, win.z_far);		
-	glTranslatef(0.0f, 0.0f, -10.0f);
-	glMatrixMode(GL_MODELVIEW);													// specify which matrix is the current matrix
-	glClearColor(0.23, 0.23, 0.23, 1.0);											// specify clear values for the color buffers								
-}
 
-
-void specialKeys(int key, int x, int y) {
-
-	//  Right arrow - increase rotation by 5 degree
-	//if (key == GLUT_KEY_RIGHT)
-	//	rotate_y += 5;
-
-	////  Left arrow - decrease rotation by 5 degree
-	//else if (key == GLUT_KEY_LEFT)
-	//	rotate_y -= 5;
-
-	//else if (key == GLUT_KEY_UP)
-	//	rotate_x += 5;
-
-	//else if (key == GLUT_KEY_DOWN)
-	//{
-	//	rotate_x -= 5;												// specify which matrix is the current matrix
-	//}
-
-	//else if (key == 32)
-	//{
-	//	rotate_x = 0;
-	//	rotate_y = 0;
-	//	scale = 1;
-	//}
-
-	//  Request display update
-	glutPostRedisplay();
-
-}
 
 void Keyboard(unsigned char key, int x, int y)
 {
@@ -414,6 +580,15 @@ void Keyboard(unsigned char key, int x, int y)
 
 int main(int argc, char** argv)
 {
+	Cube a;
+	
+	a.Build({0,1,4},1,1,1,30.f,30.f);
+	shapes.push_back(&a);
+	/*Plane P({ 0,0,10 }, {0,0,-1});
+	P.reflaction = true;
+	shapes.push_back(&P);*/
+	shapes.push_back(new Sphere({ 1,1.3,4 }, 1));
+	shapes[0]->essense.Color = { 0,70,10 };
 	fstream secF, trajF;
 	secF.open("2D.txt");
 	trajF.open("3D.txt");
@@ -431,16 +606,15 @@ int main(int argc, char** argv)
 
 	glutCreateWindow(win.title);
 	glutDisplayFunc(display);									// register Display Function
-	
+
 	glViewport(0, 0, win.width, win.height);
 	glMatrixMode(GL_PROJECTION);
 	glLoadIdentity();
-	glOrtho(0, win.width, 0, win.height, -10000, 10000);
+	glOrtho(0, win.width, 0, win.height, 10000, -10000);
 
 	glMatrixMode(GL_MODELVIEW);
 	glLoadIdentity();
 	
-	glutSpecialFunc(specialKeys);							// register Keyboard Handler
 	glutKeyboardFunc(Keyboard);
 
 
