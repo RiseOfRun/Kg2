@@ -124,9 +124,6 @@ void draw_axis(int width, int height, type_p scale) {
 }
 
 
-
-4
-
 type_p L_i_func(vector<Point> arr_points, int i, type_p x) {
     type_p val = 1;
 
@@ -215,16 +212,9 @@ type_p distance(Point a, Point b) {
 bool get_info() {
 
     fstream fcin("info.txt");
-
-
-    5
-
         if (!fcin.is_open())
-
             return false;
-
     fcin >> n_power_interpolation;
-
     return true;
 
 }
